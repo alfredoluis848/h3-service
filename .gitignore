@@ -1,5 +1,17 @@
-﻿__pycache__/
+﻿# dados e saídas pesadas (mas manter .gitkeep)
+data/*
+!data/.gitkeep
+reports/*
+!reports/.gitkeep
+
+# notebooks podem gerar cache
+**/.ipynb_checkpoints/
+
+#python
+__pycache__/
 .venv/
 *.pyc
 .DS_Store
 .env
+# docker
+*.log
