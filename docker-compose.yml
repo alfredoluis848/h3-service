@@ -1,0 +1,26 @@
+# docker-compose.yml
+version: "3.9"
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: h3-service:0.1
+    container_name: h3
+    ports:
+      - "8080:8000"        # host:container
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    read_only: true        # raiz do contêiner somente-leitura
+    tmpfs:
+      - /tmp               # necessário p/ Python/uvicorn escrever temp
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; \
+resp=urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=2); \
+sys.exit(0 if resp.getcode()==200 else 1)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
