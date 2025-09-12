@@ -1,4 +1,4 @@
-﻿# app.py
+﻿
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field, conint
 from typing import List, Tuple, Literal, Iterable, Set
@@ -7,7 +7,7 @@ import h3
 
 app = FastAPI(title="H3 Service", version="0.3.0")
 
-# ---------- helpers: compat v3/v4 ----------
+
 def _latlng_to_cell(lat: float, lng: float, res: int) -> str:
     if hasattr(h3, "latlng_to_cell"):      # v4
         return h3.latlng_to_cell(lat, lng, res)
@@ -29,7 +29,7 @@ def _grid_disk(cell: str, k: int) -> List[str]:
         return list(h3.k_ring(cell, k))
     raise RuntimeError("H3: função de vizinhança não encontrada (v3/v4).")
 
-# --------- modelos p/ entrada Polyfill (GeoJSON) ----------
+
 class GeoJSONPolygon(BaseModel):
     type: Literal["Polygon"] = "Polygon"
     # GeoJSON usa [lng, lat]
@@ -41,7 +41,7 @@ class PolyfillRequest(BaseModel):
     polygon: GeoJSONPolygon
     res: conint(ge=0, le=15) = 9
 
-# ---------------- endpoints básicos ----------------
+
 @app.get("/healthz")
 def health():
     return {
@@ -76,9 +76,9 @@ def kring(cell: str, k: conint(ge=0, le=10) = 1):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-# ---------- util: normalizações e PNP ----------
+
 def _normalize_ring_lnglat(ring: List[List[float]]) -> List[List[float]]:
-    # Remove duplicação de primeiro/último ponto se houver; manteremos aberto internamente
+    # Remove duplicação de primeiro/último ponto 
     if len(ring) >= 2 and ring[0] == ring[-1]:
         return ring[:-1]
     return ring
@@ -89,7 +89,7 @@ def _bbox(ring: List[List[float]]) -> Tuple[float, float, float, float]:
     return min(lngs), min(lats), max(lngs), max(lats)
 
 def _point_in_poly(lng: float, lat: float, ring: List[List[float]]) -> bool:
-    # Ray casting (lng,lat) com anel aberto
+    # array (lng,lat) com anel aberto
     inside = False
     n = len(ring)
     for i in range(n):
@@ -131,7 +131,7 @@ def _sample_polyfill(ring_lnglat: List[List[float]], res: int, max_pts: int = 25
     minx, miny, maxx, maxy = _bbox(ring)
     w, h = maxx - minx, maxy - miny
     if w <= 0 or h <= 0:
-        # Polígono degenerado -> usa o primeiro ponto
+        # Polígono degenerado  usa o primeiro ponto
         lat, lng = ring[0][1], ring[0][0]
         return [ _latlng_to_cell(lat, lng, res) ]
 
@@ -183,10 +183,10 @@ def polyfill(req: PolyfillRequest):
     # anel externo em [lng,lat]
     ring_lnglat = _normalize_ring_lnglat(rings[0])
 
-    # GeoJSON FECHADO para chamadas diretas
+    # GeoJSON fechado para chamadas diretas
     gj = {"type": "Polygon", "coordinates": [ring_lnglat + [ring_lnglat[0]]]}
 
-    # 1) Tenta v4 -> 2) v3 -> 3) fallback amostragem
+   
     try:
         if hasattr(h3, "polygon_to_cells"):
             cells = _polyfill_try_v4(gj, req.res)

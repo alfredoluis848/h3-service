@@ -1,4 +1,4 @@
-# Etapa de build base: Python slim (leve)
+# Etapa de build base
 FROM python:3.11-slim AS base
 
 # Não rodar como root
@@ -7,7 +7,7 @@ RUN useradd -m h3user
 # Diretório de trabalho
 WORKDIR /app
 
-# Copiar dependências primeiro (para aproveitar cache)
+# Copiar dependências primeiro 
 COPY requirements.txt .
 
 # Instalar dependências

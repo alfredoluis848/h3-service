@@ -1,4 +1,3 @@
-version: "3.9"
 
 services:
   api:
@@ -12,7 +11,7 @@ services:
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
-    read_only: true        # raiz do contêiner somente-leitura
+    read_only: true        # raiz do contêiner somente leitura
     tmpfs:
       - /tmp               # necessário p/ Python/uvicorn escrever temp
     volumes:
@@ -24,3 +23,21 @@ services:
       timeout: 3s
       retries: 5
       start_period: 5s
+
+  ingest:
+    build:
+      context: ./docker/ingest-worker
+      dockerfile: Dockerfile
+    image: terralab/ingest-worker:0.1.0
+    container_name: h3-ingest
+    security_opt:
+      - no-new-privileges:true
+    read_only: true        # raiz somente-leitura; montagens abaixo são graváveis
+    tmpfs:
+      - /tmp               # libs geo costumam usar /tmp
+    volumes:
+      - ./scripts:/app/scripts:ro
+      - ./data:/app/data
+      - ./reports:/app/reports
+    working_dir: /app
+    entrypoint: ["python3"]
