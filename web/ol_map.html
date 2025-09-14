@@ -1,0 +1,136 @@
+﻿<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8"/>
+  <title>NDVI por H3 — OpenLayers</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v9.2.4/ol.css"/>
+  <style>
+    html, body, #map { height: 100%; margin: 0; }
+    .panel{position:absolute;z-index:10;top:12px;left:12px;background:#fff;padding:8px 10px;border-radius:8px;font:12px system-ui;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+    .panel button{margin-right:6px}
+    .legend{position:absolute;z-index:10;bottom:12px;left:12px;background:#fff;padding:8px 10px;border-radius:8px;font:12px system-ui;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+    .legend .row{display:flex;align-items:center;margin-top:4px}
+    .legend .swatch{width:14px;height:14px;border-radius:3px;margin-right:6px;border:1px solid #222}
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <div class="panel">
+    <label><input type="checkbox" id="chkHex" checked> Mostrar hexágonos</label>
+    &nbsp; | &nbsp;
+    <button type="button" id="btn8">Camada larga (res=8)</button>
+    <button type="button" id="btn10">Camada fina (res=10)</button>
+  </div>
+
+  <div class="legend">
+    <div><strong>NDVI (classes)</strong></div>
+    <div class="row"><span class="swatch" style="background:#3b83f6"></span> água &lt; 0.05</div>
+    <div class="row"><span class="swatch" style="background:#b15928"></span> solo / urbano 0.05–0.20</div>
+    <div class="row"><span class="swatch" style="background:#c2cf50"></span> veg. rala 0.20–0.50</div>
+    <div class="row"><span class="swatch" style="background:#3a8b37"></span> veg. densa &gt; 0.50</div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/ol@v9.2.4/dist/ol.js"></script>
+  <script>
+    const base = new ol.layer.Tile({ source: new ol.source.OSM() });
+
+    // estilo por CLASSES NDVI
+    function ndviClassStyle(f){
+      const v = Number(f.get('ndvi_mean'));
+      let color;
+      if (!Number.isFinite(v)) {
+        color = 'rgba(128,128,128,0.5)';
+      } else if (v < 0.05) {
+        color = 'rgba(59,131,246,0.70)';     // azul (água)
+      } else if (v < 0.20) {
+        color = 'rgba(177,89,40,0.70)';      // marrom (solo/urbano)
+      } else if (v < 0.50) {
+        color = 'rgba(194,207,80,0.70)';     // amarelo-oliva (veg. rala)
+      } else {
+        color = 'rgba(58,139,55,0.70)';      // verde (veg. densa)
+      }
+      return new ol.style.Style({
+        fill:   new ol.style.Fill({ color }),
+        stroke: new ol.style.Stroke({ color: 'rgba(20,20,20,0.9)', width: 1.25 })
+      });
+    }
+
+    function makeEmptyVector(name){
+      const layer = new ol.layer.Vector({
+        source: new ol.source.Vector(),
+        visible: true,
+        zIndex: 10
+      });
+      layer.set('name', name);
+      layer.setStyle(ndviClassStyle);
+      return layer;
+    }
+
+    const layer8  = makeEmptyVector('res8');
+    const layer10 = makeEmptyVector('res10');
+    let selected = layer10;  // vamos tentar começar na fina
+
+    const map = new ol.Map({
+      target: 'map',
+      layers: [base, layer8, layer10],
+      view: new ol.View({ center: ol.proj.fromLonLat([-44.0, -19.9]), zoom: 10 })
+    });
+
+    async function loadGeojsonInto(layer, url){
+      const r = await fetch(`${url}?v=${Date.now()}`);
+      if (!r.ok) throw new Error('HTTP '+r.status);
+      const json = await r.json();
+      const fmt  = new ol.format.GeoJSON({ dataProjection:'EPSG:4326', featureProjection:'EPSG:3857' });
+      const feats = fmt.readFeatures(json);
+      const src = layer.getSource();
+      src.clear(true);
+      src.addFeatures(feats);
+      if (layer === selected && feats.length) {
+        map.getView().fit(src.getExtent(), { padding:[30,30,30,30], maxZoom: 14, duration: 250 });
+      }
+      console.log(`[load] ${layer.get('name')}: ${feats.length} hex`);
+    }
+
+    function setVisibility(on){
+      layer8.setVisible(on);
+      layer10.setVisible(on);
+    }
+
+    function show(layerToShow){
+      selected = layerToShow;
+      // mantém a outra carregada, mas não visível (para trocar instantâneo)
+      layer8.setZIndex(layerToShow === layer8 ? 11 : 10);
+      layer10.setZIndex(layerToShow === layer10 ? 11 : 10);
+      // se o checkbox estiver off, deixa ambas invisíveis
+      if (document.getElementById('chkHex').checked) {
+        layer8.setVisible(layerToShow === layer8);
+        layer10.setVisible(layerToShow === layer10);
+      }
+      const src = layerToShow.getSource();
+      if (src.getFeatures().length) {
+        map.getView().fit(src.getExtent(), { padding:[30,30,30,30], maxZoom: 14, duration: 250 });
+      }
+    }
+
+    // carregar dados
+    loadGeojsonInto(layer8,  './ndvi_res8.geojson');
+    loadGeojsonInto(layer10, './ndvi_res10.geojson');
+
+    // escolher qual mostrar primeiro (se existir res10, usa ela)
+    fetch('./ndvi_res10.geojson', { method: 'HEAD' })
+      .then(r => (r.ok ? show(layer10) : show(layer8)))
+      .catch(() => show(layer8));
+
+    // UI
+    document.getElementById('btn8').onclick  = () => show(layer8);
+    document.getElementById('btn10').onclick = () => show(layer10);
+    document.getElementById('chkHex').onchange = e => {
+      const on = e.target.checked;
+      if (!on) { layer8.setVisible(false); layer10.setVisible(false); }
+      else     { show(selected); }
+    };
+  </script>
+</body>
+</html>

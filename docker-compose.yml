@@ -39,5 +39,19 @@ services:
       - ./scripts:/app/scripts:ro
       - ./data:/app/data
       - ./reports:/app/reports
+      - ./web:/app/web     
     working_dir: /app
     entrypoint: ["python3"]
+
+  downloader:
+    build:
+      context: .
+      dockerfile: docker/downloader.Dockerfile
+    image: h3-downloader:0.1
+    volumes:
+      - ./:/app
+    environment:
+      NDVI_DATE: "2023-07-01/2023-07-31"  # ajuste à vontade
+      NDVI_MAX_CLOUD: "10"
+      MG_BBOX: "-44.2 -20.1 -43.6 -19.6"   
+    command: ["python", "scripts/ndvi_download.py"]
